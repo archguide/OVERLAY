@@ -429,7 +429,7 @@
             const geocoder = new google.maps.Geocoder();
             const allStops = [];
             
-            console.log(`Creating road perimeter for ${tour.name} with ${tour.addresses.length} stops`);
+            console.log(`Creating neighborhood boundary for ${tour.name}`);
             
             for (const address of tour.addresses) {
                 try {
@@ -443,47 +443,21 @@
             }
             
             if (allStops.length < 3) {
-                console.log('Not enough stops for perimeter, using simple boundary');
+                console.log('Not enough stops for boundary, using simple boundary');
                 return await createSimpleTourOverlay(tour);
             }
             
-            // Find the outermost perimeter points (convex hull)
-            const perimeterPoints = convexHull(allStops);
-            console.log(`Found ${perimeterPoints.length} perimeter points`);
+            // Create a neighborhood-style boundary
+            const boundaryPolygon = await createNeighborhoodBoundary(allStops, tour.color);
             
-            // Get road routes between consecutive perimeter points
-            const perimeterRoutes = [];
-            const directionsService = new google.maps.DirectionsService();
-            
-            for (let i = 0; i < perimeterPoints.length; i++) {
-                const start = perimeterPoints[i];
-                const end = perimeterPoints[(i + 1) % perimeterPoints.length];
-                
-                try {
-                    const route = await getRoutePoints(directionsService, start, end);
-                    if (route && route.length > 0) {
-                        // Add route points, but skip the last point to avoid duplication
-                        perimeterRoutes.push(...route.slice(0, -1));
-                    }
-                } catch (error) {
-                    console.log(`Failed to get route between perimeter points, using straight line`);
-                    perimeterRoutes.push(start);
-                }
-            }
-            
-            if (perimeterRoutes.length < 3) {
-                console.log('Failed to create road perimeter, using convex hull');
-                perimeterRoutes.push(...perimeterPoints);
-            }
-            
-            // Create the polygon overlay
+            // Create the clean polygon overlay (no markers)
             const polygon = new google.maps.Polygon({
-                paths: perimeterRoutes,
+                paths: boundaryPolygon,
                 strokeColor: tour.color,
                 strokeOpacity: 0.8,
-                strokeWeight: 3,
+                strokeWeight: 2,
                 fillColor: tour.color,
-                fillOpacity: 0.2,
+                fillOpacity: 0.15,
                 map: map,
                 clickable: true
             });
@@ -497,64 +471,90 @@
                 tour: tour
             });
             
-            // Add markers for all stops (smaller ones for interior, larger for perimeter)
-            addTourStopMarkers(allStops, perimeterPoints, tour.color);
+            console.log(`Created clean neighborhood boundary for ${tour.name}`);
+        }
+
+        async function createNeighborhoodBoundary(stops, color) {
+            // Find the convex hull of all stops
+            const hull = convexHull(stops);
             
-            console.log(`Created road perimeter boundary with ${perimeterRoutes.length} points`);
+            // Create a buffer around the hull to make it more neighborhood-like
+            const bufferedBoundary = createSmoothBuffer(hull, 0.004); // ~400 meter buffer
+            
+            // Ensure the polygon is properly closed
+            if (bufferedBoundary.length > 0) {
+                const firstPoint = bufferedBoundary[0];
+                const lastPoint = bufferedBoundary[bufferedBoundary.length - 1];
+                
+                // Close the polygon if not already closed
+                if (Math.abs(firstPoint.lat - lastPoint.lat) > 0.00001 || 
+                    Math.abs(firstPoint.lng - lastPoint.lng) > 0.00001) {
+                    bufferedBoundary.push({ lat: firstPoint.lat, lng: firstPoint.lng });
+                }
+            }
+            
+            return bufferedBoundary;
         }
 
-        async function getRoutePoints(directionsService, start, end) {
-            return new Promise((resolve, reject) => {
-                directionsService.route({
-                    origin: start,
-                    destination: end,
-                    travelMode: google.maps.TravelMode.DRIVING,
-                    optimizeWaypoints: false
-                }, (result, status) => {
-                    if (status === 'OK' && result.routes[0]) {
-                        // Get detailed path points from the route
-                        const path = result.routes[0].overview_path;
-                        const routePoints = path.map(point => ({
-                            lat: point.lat(),
-                            lng: point.lng()
-                        }));
-                        resolve(routePoints);
-                    } else {
-                        reject(new Error(`Route failed: ${status}`));
-                    }
-                });
-            });
-        }
-
-        function addTourStopMarkers(allStops, perimeterPoints, color) {
-            // Create markers for all stops
-            allStops.forEach((stop, index) => {
-                const isPerimeter = perimeterPoints.some(p => 
-                    Math.abs(p.lat - stop.lat) < 0.0001 && Math.abs(p.lng - stop.lng) < 0.0001
-                );
+        function createSmoothBuffer(hull, bufferDistance) {
+            if (hull.length < 3) return hull;
+            
+            const bufferedPoints = [];
+            const smoothingFactor = 16; // Number of points to create smooth curves
+            
+            for (let i = 0; i < hull.length; i++) {
+                const current = hull[i];
+                const next = hull[(i + 1) % hull.length];
+                const prev = hull[(i - 1 + hull.length) % hull.length];
                 
-                const markerSize = isPerimeter ? 20 : 14;
-                const strokeWidth = isPerimeter ? 3 : 2;
+                // Calculate vectors
+                const toPrev = {
+                    lat: prev.lat - current.lat,
+                    lng: prev.lng - current.lng
+                };
+                const toNext = {
+                    lat: next.lat - current.lat,
+                    lng: next.lng - current.lng
+                };
                 
-                new google.maps.Marker({
-                    position: stop,
-                    map: map,
-                    icon: {
-                        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                            <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 ${markerSize} ${markerSize}" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="${markerSize/2}" cy="${markerSize/2}" r="${markerSize/2 - strokeWidth/2}" 
-                                    fill="${color}" stroke="white" stroke-width="${strokeWidth}"/>
-                                <text x="${markerSize/2}" y="${markerSize/2 + 3}" text-anchor="middle" 
-                                    fill="white" font-size="${Math.floor(markerSize * 0.4)}" font-weight="bold">${index + 1}</text>
-                            </svg>
-                        `)}`,
-                        scaledSize: new google.maps.Size(markerSize, markerSize),
-                        anchor: new google.maps.Point(markerSize/2, markerSize/2)
-                    },
-                    title: `Stop ${index + 1}${isPerimeter ? ' (Perimeter)' : ''}`,
-                    zIndex: isPerimeter ? 1000 : 900
-                });
-            });
+                // Calculate outward normal (perpendicular to average direction)
+                const avgDir = {
+                    lat: (toPrev.lat + toNext.lat) / 2,
+                    lng: (toPrev.lng + toNext.lng) / 2
+                };
+                
+                // Perpendicular vector (outward normal)
+                const normal = {
+                    lat: -avgDir.lng,
+                    lng: avgDir.lat
+                };
+                
+                // Normalize
+                const length = Math.sqrt(normal.lat * normal.lat + normal.lng * normal.lng);
+                if (length > 0) {
+                    normal.lat /= length;
+                    normal.lng /= length;
+                }
+                
+                // Create multiple points around this corner for smooth curves
+                const startAngle = Math.atan2(toPrev.lng, toPrev.lat);
+                const endAngle = Math.atan2(toNext.lng, toNext.lat);
+                
+                for (let j = 0; j < smoothingFactor; j++) {
+                    const ratio = j / smoothingFactor;
+                    const angle = startAngle + (endAngle - startAngle) * ratio;
+                    
+                    const offsetX = Math.cos(angle) * bufferDistance;
+                    const offsetY = Math.sin(angle) * bufferDistance;
+                    
+                    bufferedPoints.push({
+                        lat: current.lat + offsetY,
+                        lng: current.lng + offsetX
+                    });
+                }
+            }
+            
+            return bufferedPoints;
         }
 
         function convexHull(points) {
@@ -578,7 +578,6 @@
                 const angleA = Math.atan2(a.lat - startPoint.lat, a.lng - startPoint.lng);
                 const angleB = Math.atan2(b.lat - startPoint.lat, b.lng - startPoint.lng);
                 if (Math.abs(angleA - angleB) < 0.0001) {
-                    // If angles are equal, sort by distance
                     const distA = distance(startPoint, a);
                     const distB = distance(startPoint, b);
                     return distA - distB;
@@ -586,11 +585,10 @@
                 return angleA - angleB;
             });
             
-            // Build convex hull using Graham scan
+            // Build convex hull
             const hull = [startPoint];
             
             for (const point of sorted) {
-                // Remove points that create clockwise turn
                 while (hull.length > 1 && 
                        crossProduct(hull[hull.length-2], hull[hull.length-1], point) <= 0) {
                     hull.pop();
