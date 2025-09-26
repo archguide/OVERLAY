@@ -400,9 +400,11 @@
             
             // For now, use sample data
             tours = sampleTours;
+            console.log(`Loading ${tours.length} tours:`, tours.map(t => t.name));
             
             // Fetch real neighborhood boundaries for each tour
             for (const tour of tours) {
+                console.log(`Processing tour: ${tour.name}`);
                 await createTourOverlay(tour);
             }
             
@@ -411,6 +413,8 @@
             
             // Hide loading
             document.getElementById('loading').style.display = 'none';
+            
+            console.log(`Finished loading ${tourPolygons.length} tour overlays`);
         }
 
         async function loadToursFromGoogleSheets() {
@@ -559,40 +563,29 @@
             return boundaries[tourId] || null;
         }
 
-        async function tryAPIBoundaryLookup(tour) {
-            // This function demonstrates how the API lookup would work
-            // Currently disabled due to CORS and complexity issues
+        function createBoundaryPolygon(tour, boundary) {
+            // Create polygon from boundary coordinates
+            const polygon = new google.maps.Polygon({
+                paths: boundary,
+                strokeColor: tour.color,
+                strokeOpacity: 0.9,
+                strokeWeight: 2,
+                fillColor: tour.color,
+                fillOpacity: 0.15,
+                map: map,
+                clickable: true
+            });
             
-            console.log(`API lookup for ${tour.neighborhoodName} - feature coming soon`);
+            polygon.addListener('click', () => {
+                showTourCard(tour);
+            });
             
-            /* 
-            Uncomment and modify when ready to implement:
+            tourPolygons.push({
+                polygon: polygon,
+                tour: tour
+            });
             
-            try {
-                // Simple LA City boundary lookup
-                const response = await fetch('https://geohub.lacity.org/datasets/lahub::neighborhood-councils-certified.geojson');
-                const data = await response.json();
-                
-                const neighborhood = data.features.find(feature => {
-                    const name = feature.properties.name;
-                    return name && name.toLowerCase().includes(tour.neighborhoodName.toLowerCase());
-                });
-                
-                if (neighborhood) {
-                    const boundary = neighborhood.geometry.coordinates[0].map(coord => ({
-                        lat: coord[1],
-                        lng: coord[0]
-                    }));
-                    createBoundaryPolygon(tour, boundary);
-                    return;
-                }
-            } catch (error) {
-                console.error('API boundary lookup failed:', error);
-            }
-            */
-            
-            // For now, skip if no hardcoded boundary
-            console.log(`No boundary available for ${tour.name}`);
+            console.log(`Created boundary polygon for ${tour.name}`);
         }
 
         async function fetchNeighborhoodBoundary(neighborhoodName) {
