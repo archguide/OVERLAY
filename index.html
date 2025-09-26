@@ -330,7 +330,7 @@
         let activeTourCard = null;
         let tourPolygons = [];
         
-        // Sample tour data - this will be replaced with Google Sheets data
+        // Sample tour data with predefined neighborhood boundaries
         const sampleTours = [
             {
                 id: 'pasadena-historic',
@@ -341,33 +341,163 @@
                 stops: 22,
                 duration: 2.5,
                 distance: 8.3,
-                addresses: [
-                    '645 Prospect Crescent',
-                    '657 Prospect Boulevard',
-                    '4 Westmoreland Place',
-                    '412 Glen Holly Dr, Pasadena, CA 91105',
-                    '480 Glen Holly Drive',
-                    '1540 Poppy Peak Dr. Pasadena, CA 91105',
-                    '1150 La Loma Rd, Pasadena, CA 91105',
-                    '711 S San Rafael Avenue',
-                    '510 Lockehaven Street',
-                    '391 S Orange Grove Blvd, Pasadena',
-                    '125 South Grand Avenue',
-                    '131 S St John Ave, Pasadena, CA 91105',
-                    '443 S Raymond Avenue',
-                    '99 South Raymond Avenue',
-                    '300 East Green Street',
-                    '46 LOS ROBLES',
-                    '132 North Euclid',
-                    '100 North Garfield Avenue',
-                    '150 N MADISON AVE',
-                    '585 E Colorado Blvd, Pasadena, CA 91101',
-                    '606 E COLORADO',
-                    '680 Colorado'
-                ],
-                photoUrl: null // Will use gradient placeholder
+                boundary: [
+                    { lat: 34.1756, lng: -118.1212 },
+                    { lat: 34.1756, lng: -118.1140 },
+                    { lat: 34.1689, lng: -118.1140 },
+                    { lat: 34.1689, lng: -118.1062 },
+                    { lat: 34.1578, lng: -118.1062 },
+                    { lat: 34.1578, lng: -118.1140 },
+                    { lat: 34.1445, lng: -118.1140 },
+                    { lat: 34.1445, lng: -118.1212 },
+                    { lat: 34.1312, lng: -118.1212 },
+                    { lat: 34.1312, lng: -118.1284 },
+                    { lat: 34.1223, lng: -118.1284 },
+                    { lat: 34.1223, lng: -118.1356 },
+                    { lat: 34.1134, lng: -118.1356 },
+                    { lat: 34.1134, lng: -118.1428 },
+                    { lat: 34.1045, lng: -118.1428 },
+                    { lat: 34.1045, lng: -118.1500 },
+                    { lat: 34.0956, lng: -118.1500 },
+                    { lat: 34.0956, lng: -118.1572 },
+                    { lat: 34.0978, lng: -118.1572 },
+                    { lat: 34.0978, lng: -118.1644 },
+                    { lat: 34.1067, lng: -118.1644 },
+                    { lat: 34.1067, lng: -118.1572 },
+                    { lat: 34.1156, lng: -118.1572 },
+                    { lat: 34.1156, lng: -118.1500 },
+                    { lat: 34.1245, lng: -118.1500 },
+                    { lat: 34.1245, lng: -118.1428 },
+                    { lat: 34.1334, lng: -118.1428 },
+                    { lat: 34.1334, lng: -118.1356 },
+                    { lat: 34.1423, lng: -118.1356 },
+                    { lat: 34.1423, lng: -118.1284 },
+                    { lat: 34.1512, lng: -118.1284 },
+                    { lat: 34.1512, lng: -118.1212 },
+                    { lat: 34.1756, lng: -118.1212 }
+                ]
+            },
+            {
+                id: 'los-feliz',
+                name: 'Los Feliz',
+                subtitle: 'Los Feliz • Hollywood Hills & Griffith Park',
+                description: 'Discover the bohemian charm of Los Feliz with its historic theaters, trendy cafes, hillside mansions, and proximity to Griffith Observatory.',
+                color: '#4ECDC4',
+                stops: 18,
+                duration: 2.0,
+                distance: 6.5,
+                boundary: [
+                    { lat: 34.1200, lng: -118.2950 },
+                    { lat: 34.1200, lng: -118.2750 },
+                    { lat: 34.1100, lng: -118.2750 },
+                    { lat: 34.1100, lng: -118.2650 },
+                    { lat: 34.1000, lng: -118.2650 },
+                    { lat: 34.1000, lng: -118.2550 },
+                    { lat: 34.0900, lng: -118.2550 },
+                    { lat: 34.0900, lng: -118.2750 },
+                    { lat: 34.0800, lng: -118.2750 },
+                    { lat: 34.0800, lng: -118.2850 },
+                    { lat: 34.0900, lng: -118.2850 },
+                    { lat: 34.0900, lng: -118.2950 },
+                    { lat: 34.1000, lng: -118.2950 },
+                    { lat: 34.1000, lng: -118.3050 },
+                    { lat: 34.1100, lng: -118.3050 },
+                    { lat: 34.1100, lng: -118.2950 },
+                    { lat: 34.1200, lng: -118.2950 }
+                ]
+            },
+            {
+                id: 'silver-lake',
+                name: 'Silver Lake',
+                subtitle: 'Silver Lake • Hipster Haven & Reservoir Views',
+                description: 'Experience the artistic soul of LA in Silver Lake, known for indie music venues, vintage shops, reservoir walks, and eclectic architecture.',
+                color: '#45B7D1',
+                stops: 15,
+                duration: 1.8,
+                distance: 5.2,
+                boundary: [
+                    { lat: 34.1000, lng: -118.2750 },
+                    { lat: 34.1000, lng: -118.2550 },
+                    { lat: 34.0900, lng: -118.2550 },
+                    { lat: 34.0900, lng: -118.2450 },
+                    { lat: 34.0800, lng: -118.2450 },
+                    { lat: 34.0800, lng: -118.2350 },
+                    { lat: 34.0700, lng: -118.2350 },
+                    { lat: 34.0700, lng: -118.2450 },
+                    { lat: 34.0600, lng: -118.2450 },
+                    { lat: 34.0600, lng: -118.2550 },
+                    { lat: 34.0700, lng: -118.2550 },
+                    { lat: 34.0700, lng: -118.2650 },
+                    { lat: 34.0800, lng: -118.2650 },
+                    { lat: 34.0800, lng: -118.2750 },
+                    { lat: 34.0900, lng: -118.2750 },
+                    { lat: 34.0900, lng: -118.2850 },
+                    { lat: 34.1000, lng: -118.2850 },
+                    { lat: 34.1000, lng: -118.2750 }
+                ]
+            },
+            {
+                id: 'west-hollywood',
+                name: 'West Hollywood',
+                subtitle: 'West Hollywood • Sunset Strip & Design District',
+                description: 'Explore the glamorous heart of LA nightlife and design in WeHo, featuring the iconic Sunset Strip, world-class shopping, and vibrant LGBTQ+ culture.',
+                color: '#96CEB4',
+                stops: 20,
+                duration: 2.2,
+                distance: 7.1,
+                boundary: [
+                    { lat: 34.1000, lng: -118.3800 },
+                    { lat: 34.1000, lng: -118.3500 },
+                    { lat: 34.0900, lng: -118.3500 },
+                    { lat: 34.0900, lng: -118.3600 },
+                    { lat: 34.0800, lng: -118.3600 },
+                    { lat: 34.0800, lng: -118.3700 },
+                    { lat: 34.0750, lng: -118.3700 },
+                    { lat: 34.0750, lng: -118.3800 },
+                    { lat: 34.0700, lng: -118.3800 },
+                    { lat: 34.0700, lng: -118.3900 },
+                    { lat: 34.0800, lng: -118.3900 },
+                    { lat: 34.0800, lng: -118.4000 },
+                    { lat: 34.0900, lng: -118.4000 },
+                    { lat: 34.0900, lng: -118.3900 },
+                    { lat: 34.1000, lng: -118.3900 },
+                    { lat: 34.1000, lng: -118.3800 }
+                ]
+            },
+            {
+                id: 'downtown-la',
+                name: 'Downtown LA',
+                subtitle: 'DTLA • Skyscrapers & Historic Core',
+                description: 'Discover the urban renaissance of Downtown LA with its towering skyscrapers, historic architecture, arts district, and world-class dining scene.',
+                color: '#FFEAA7',
+                stops: 25,
+                duration: 3.0,
+                distance: 9.8,
+                boundary: [
+                    { lat: 34.0700, lng: -118.2300 },
+                    { lat: 34.0700, lng: -118.2100 },
+                    { lat: 34.0600, lng: -118.2100 },
+                    { lat: 34.0600, lng: -118.2000 },
+                    { lat: 34.0500, lng: -118.2000 },
+                    { lat: 34.0500, lng: -118.2100 },
+                    { lat: 34.0400, lng: -118.2100 },
+                    { lat: 34.0400, lng: -118.2200 },
+                    { lat: 34.0300, lng: -118.2200 },
+                    { lat: 34.0300, lng: -118.2300 },
+                    { lat: 34.0200, lng: -118.2300 },
+                    { lat: 34.0200, lng: -118.2400 },
+                    { lat: 34.0300, lng: -118.2400 },
+                    { lat: 34.0300, lng: -118.2500 },
+                    { lat: 34.0400, lng: -118.2500 },
+                    { lat: 34.0400, lng: -118.2600 },
+                    { lat: 34.0500, lng: -118.2600 },
+                    { lat: 34.0500, lng: -118.2500 },
+                    { lat: 34.0600, lng: -118.2500 },
+                    { lat: 34.0600, lng: -118.2400 },
+                    { lat: 34.0700, lng: -118.2400 },
+                    { lat: 34.0700, lng: -118.2300 }
+                ]
             }
-            // Additional tours will be added here from Google Sheets
         ];
 
         function initMap() {
@@ -414,14 +544,42 @@
 
         async function createTourOverlay(tour) {
             try {
-                // Create road-following perimeter boundary
-                await createRoadPerimeterBoundary(tour);
+                // Use predefined neighborhood boundaries
+                if (tour.boundary && tour.boundary.length > 0) {
+                    createPredefinedBoundary(tour);
+                } else {
+                    // Fallback to algorithmic boundary if no predefined boundary exists
+                    console.log(`No predefined boundary for ${tour.name}, skipping for now`);
+                }
                 
             } catch (error) {
                 console.error('Error creating tour overlay:', error);
-                // Fallback to simple boundary
-                await createSimpleTourOverlay(tour);
             }
+        }
+
+        function createPredefinedBoundary(tour) {
+            // Create polygon from predefined boundary coordinates
+            const polygon = new google.maps.Polygon({
+                paths: tour.boundary,
+                strokeColor: tour.color,
+                strokeOpacity: 0.9,
+                strokeWeight: 2,
+                fillColor: tour.color,
+                fillOpacity: 0.15,
+                map: map,
+                clickable: true
+            });
+            
+            polygon.addListener('click', () => {
+                showTourCard(tour);
+            });
+            
+            tourPolygons.push({
+                polygon: polygon,
+                tour: tour
+            });
+            
+            console.log(`Created predefined boundary for ${tour.name}`);
         }
 
         async function createRoadPerimeterBoundary(tour) {
