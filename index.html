@@ -484,27 +484,127 @@
         }
 
         function createTourBounds(coordinates) {
-            // Create a simple bounding polygon around the coordinates
-            // This is a simplified approach - for production you might want a proper convex hull algorithm
-            
             if (coordinates.length < 3) return coordinates;
             
-            // Find bounds
-            const bounds = new google.maps.LatLngBounds();
-            coordinates.forEach(coord => bounds.extend(coord));
+            // Create a more organic shape using convex hull with buffering
+            const hull = convexHull(coordinates);
             
-            const ne = bounds.getNorthEast();
-            const sw = bounds.getSouthWest();
+            // Add buffer around the convex hull to create more realistic boundaries
+            return addBufferToPolygon(hull, 0.002); // ~200 meter buffer
+        }
+        
+        function convexHull(points) {
+            // Graham scan algorithm for convex hull
+            if (points.length < 3) return points;
             
-            // Create a rectangle with some padding
-            const padding = 0.003; // ~300 meters
+            // Find the bottom-most point (and left-most in case of tie)
+            let start = 0;
+            for (let i = 1; i < points.length; i++) {
+                if (points[i].lat < points[start].lat || 
+                    (points[i].lat === points[start].lat && points[i].lng < points[start].lng)) {
+                    start = i;
+                }
+            }
             
-            return [
-                { lat: ne.lat() + padding, lng: sw.lng() - padding },
-                { lat: ne.lat() + padding, lng: ne.lng() + padding },
-                { lat: sw.lat() - padding, lng: ne.lng() + padding },
-                { lat: sw.lat() - padding, lng: sw.lng() - padding }
-            ];
+            // Sort points by polar angle with respect to start point
+            const sorted = points.slice();
+            const startPoint = sorted[start];
+            sorted.splice(start, 1);
+            
+            sorted.sort((a, b) => {
+                const angleA = Math.atan2(a.lat - startPoint.lat, a.lng - startPoint.lng);
+                const angleB = Math.atan2(b.lat - startPoint.lat, b.lng - startPoint.lng);
+                if (angleA === angleB) {
+                    // If angles are equal, sort by distance
+                    const distA = distance(startPoint, a);
+                    const distB = distance(startPoint, b);
+                    return distA - distB;
+                }
+                return angleA - angleB;
+            });
+            
+            // Build convex hull
+            const hull = [startPoint];
+            
+            for (const point of sorted) {
+                // Remove points that create clockwise turn
+                while (hull.length > 1 && 
+                       crossProduct(hull[hull.length-2], hull[hull.length-1], point) <= 0) {
+                    hull.pop();
+                }
+                hull.push(point);
+            }
+            
+            return hull;
+        }
+        
+        function crossProduct(o, a, b) {
+            return (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+        }
+        
+        function distance(a, b) {
+            return Math.sqrt(Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2));
+        }
+        
+        function addBufferToPolygon(hull, bufferSize) {
+            // Create a buffer around the polygon by expanding outward
+            const bufferedPoints = [];
+            const numPoints = hull.length;
+            
+            for (let i = 0; i < numPoints; i++) {
+                const current = hull[i];
+                const next = hull[(i + 1) % numPoints];
+                const prev = hull[(i - 1 + numPoints) % numPoints];
+                
+                // Calculate perpendicular vectors for buffering
+                const toNext = normalize({ 
+                    lat: next.lat - current.lat, 
+                    lng: next.lng - current.lng 
+                });
+                const toPrev = normalize({ 
+                    lat: prev.lat - current.lat, 
+                    lng: prev.lng - current.lng 
+                });
+                
+                // Calculate bisector (average of perpendiculars)
+                const bisector = normalize({
+                    lat: (perpendicular(toNext).lat + perpendicular(toPrev).lat) / 2,
+                    lng: (perpendicular(toNext).lng + perpendicular(toPrev).lng) / 2
+                });
+                
+                // Add buffered point
+                bufferedPoints.push({
+                    lat: current.lat + bisector.lat * bufferSize,
+                    lng: current.lng + bisector.lng * bufferSize
+                });
+            }
+            
+            // Add some intermediate points for smoother curves
+            const smoothedPoints = [];
+            for (let i = 0; i < bufferedPoints.length; i++) {
+                const current = bufferedPoints[i];
+                const next = bufferedPoints[(i + 1) % bufferedPoints.length];
+                
+                smoothedPoints.push(current);
+                
+                // Add intermediate point for smoother curves
+                smoothedPoints.push({
+                    lat: (current.lat + next.lat) / 2,
+                    lng: (current.lng + next.lng) / 2
+                });
+            }
+            
+            return smoothedPoints;
+        }
+        
+        function normalize(vector) {
+            const length = Math.sqrt(vector.lat * vector.lat + vector.lng * vector.lng);
+            if (length === 0) return { lat: 0, lng: 0 };
+            return { lat: vector.lat / length, lng: vector.lng / length };
+        }
+        
+        function perpendicular(vector) {
+            return { lat: -vector.lng, lng: vector.lat };
         }
 
         function addTourMarkers(coordinates, color) {
