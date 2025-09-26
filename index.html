@@ -414,53 +414,269 @@
 
         async function createTourOverlay(tour) {
             try {
-                // Geocode all addresses for this tour
-                const geocoder = new google.maps.Geocoder();
-                const coordinates = [];
+                // First try to use predefined neighborhood boundaries
+                const neighborhoodBoundary = await getNeighborhoodBoundary(tour);
                 
-                for (const address of tour.addresses) {
-                    try {
-                        const result = await geocodeAddress(geocoder, address);
-                        if (result) {
-                            coordinates.push(result);
-                        }
-                    } catch (error) {
-                        console.log(`Could not geocode: ${address}`);
-                    }
-                }
-                
-                if (coordinates.length > 0) {
-                    // Create a convex hull or bounding area for the tour
-                    const tourBounds = createTourBounds(coordinates);
-                    
-                    // Create polygon overlay
-                    const polygon = new google.maps.Polygon({
-                        paths: tourBounds,
-                        strokeColor: tour.color,
-                        strokeOpacity: 0.8,
-                        strokeWeight: 3,
-                        fillColor: tour.color,
-                        fillOpacity: 0.2,
-                        map: map,
-                        clickable: true
-                    });
-                    
-                    // Add click listener
-                    polygon.addListener('click', () => {
-                        showTourCard(tour);
-                    });
-                    
-                    tourPolygons.push({
-                        polygon: polygon,
-                        tour: tour
-                    });
-                    
-                    // Add markers for key stops (optional)
-                    addTourMarkers(coordinates.slice(0, 3), tour.color); // Show first 3 stops
+                if (neighborhoodBoundary) {
+                    // Use predefined boundary
+                    createPolygonFromBoundary(neighborhoodBoundary, tour);
+                } else {
+                    // Fallback: Create street-following boundary
+                    await createStreetBasedBoundary(tour);
                 }
                 
             } catch (error) {
                 console.error('Error creating tour overlay:', error);
+                // Final fallback to simple boundary
+                await createSimpleTourOverlay(tour);
+            }
+        }
+
+        async function getNeighborhoodBoundary(tour) {
+            // For Pasadena, we can define known neighborhood boundaries
+            // This would ideally come from your Google Sheet with predefined polygons
+            
+            const predefinedBoundaries = {
+                'pasadena-historic': {
+                    // South Pasadena boundary following major streets
+                    boundary: [
+                        { lat: 34.1003, lng: -118.1506 }, // Fair Oaks & Huntington
+                        { lat: 34.1145, lng: -118.1506 }, // Fair Oaks & California
+                        { lat: 34.1145, lng: -118.1673 }, // Orange Grove & California  
+                        { lat: 34.1074, lng: -118.1673 }, // Orange Grove & Mission
+                        { lat: 34.1074, lng: -118.1739 }, // Raymond & Mission
+                        { lat: 34.0980, lng: -118.1739 }, // Raymond & Fremont
+                        { lat: 34.0980, lng: -118.1640 }, // Meridian & Fremont
+                        { lat: 34.1003, lng: -118.1640 }, // Meridian & Huntington
+                        { lat: 34.1003, lng: -118.1506 }  // Back to start
+                    ]
+                }
+                // Add more predefined boundaries here for other tours
+            };
+            
+            return predefinedBoundaries[tour.id] || null;
+        }
+
+        async function createStreetBasedBoundary(tour) {
+            // Geocode all addresses first
+            const geocoder = new google.maps.Geocoder();
+            const coordinates = [];
+            
+            for (const address of tour.addresses) {
+                try {
+                    const result = await geocodeAddress(geocoder, address);
+                    if (result) {
+                        coordinates.push(result);
+                    }
+                } catch (error) {
+                    console.log(`Could not geocode: ${address}`);
+                }
+            }
+            
+            if (coordinates.length > 0) {
+                // Find the bounding area
+                const bounds = new google.maps.LatLngBounds();
+                coordinates.forEach(coord => bounds.extend(coord));
+                
+                // Create boundary points along major streets
+                const streetBoundary = await createStreetFollowingPolygon(bounds, coordinates);
+                
+                // Create polygon
+                const polygon = new google.maps.Polygon({
+                    paths: streetBoundary,
+                    strokeColor: tour.color,
+                    strokeOpacity: 0.8,
+                    strokeWeight: 3,
+                    fillColor: tour.color,
+                    fillOpacity: 0.2,
+                    map: map,
+                    clickable: true
+                });
+                
+                polygon.addListener('click', () => {
+                    showTourCard(tour);
+                });
+                
+                tourPolygons.push({
+                    polygon: polygon,
+                    tour: tour
+                });
+                
+                // Add key stop markers
+                addTourMarkers(coordinates.slice(0, 3), tour.color);
+            }
+        }
+
+        async function createStreetFollowingPolygon(bounds, tourPoints) {
+            // Create boundary points that follow major streets
+            const directionsService = new google.maps.DirectionsService();
+            
+            try {
+                // Find corner points along major streets
+                const cornerPoints = [
+                    { lat: bounds.getNorthEast().lat(), lng: bounds.getSouthWest().lng() }, // NW
+                    { lat: bounds.getNorthEast().lat(), lng: bounds.getNorthEast().lng() }, // NE  
+                    { lat: bounds.getSouthWest().lat(), lng: bounds.getNorthEast().lng() }, // SE
+                    { lat: bounds.getSouthWest().lat(), lng: bounds.getSouthWest().lng() }  // SW
+                ];
+                
+                // Snap corner points to nearest major roads
+                const snappedPoints = [];
+                for (const point of cornerPoints) {
+                    const snapped = await snapToNearestRoad(point);
+                    snappedPoints.push(snapped || point);
+                }
+                
+                // Create boundary following roads between snapped points
+                const roadBoundary = [];
+                for (let i = 0; i < snappedPoints.length; i++) {
+                    const start = snappedPoints[i];
+                    const end = snappedPoints[(i + 1) % snappedPoints.length];
+                    
+                    // Get road route between points
+                    const roadSegment = await getRoadRoute(start, end);
+                    roadBoundary.push(...roadSegment);
+                }
+                
+                return roadBoundary.length > 3 ? roadBoundary : cornerPoints;
+                
+            } catch (error) {
+                console.log('Street following failed, using simplified boundary');
+                return [
+                    { lat: bounds.getNorthEast().lat(), lng: bounds.getSouthWest().lng() },
+                    { lat: bounds.getNorthEast().lat(), lng: bounds.getNorthEast().lng() },
+                    { lat: bounds.getSouthWest().lat(), lng: bounds.getNorthEast().lng() },
+                    { lat: bounds.getSouthWest().lat(), lng: bounds.getSouthWest().lng() }
+                ];
+            }
+        }
+
+        async function snapToNearestRoad(point) {
+            // This would use Google's Snap to Roads API in production
+            // For now, we'll use a simplified approach with Directions API
+            
+            const directionsService = new google.maps.DirectionsService();
+            
+            return new Promise((resolve) => {
+                // Try to get a route to a nearby point to snap to road
+                const nearbyPoint = {
+                    lat: point.lat + 0.001,
+                    lng: point.lng + 0.001
+                };
+                
+                directionsService.route({
+                    origin: point,
+                    destination: nearbyPoint,
+                    travelMode: google.maps.TravelMode.DRIVING
+                }, (result, status) => {
+                    if (status === 'OK' && result.routes[0]) {
+                        const snappedPoint = result.routes[0].legs[0].start_location;
+                        resolve({
+                            lat: snappedPoint.lat(),
+                            lng: snappedPoint.lng()
+                        });
+                    } else {
+                        resolve(point); // Fallback to original point
+                    }
+                });
+            });
+        }
+
+        async function getRoadRoute(start, end) {
+            const directionsService = new google.maps.DirectionsService();
+            
+            return new Promise((resolve) => {
+                directionsService.route({
+                    origin: start,
+                    destination: end,
+                    travelMode: google.maps.TravelMode.DRIVING
+                }, (result, status) => {
+                    if (status === 'OK' && result.routes[0]) {
+                        const path = result.routes[0].overview_path;
+                        const roadPoints = path.map(point => ({
+                            lat: point.lat(),
+                            lng: point.lng()
+                        }));
+                        resolve(roadPoints);
+                    } else {
+                        resolve([start, end]); // Fallback to straight line
+                    }
+                });
+            });
+        }
+
+        function createPolygonFromBoundary(boundaryData, tour) {
+            const polygon = new google.maps.Polygon({
+                paths: boundaryData.boundary,
+                strokeColor: tour.color,
+                strokeOpacity: 0.8,
+                strokeWeight: 3,
+                fillColor: tour.color,
+                fillOpacity: 0.2,
+                map: map,
+                clickable: true
+            });
+            
+            polygon.addListener('click', () => {
+                showTourCard(tour);
+            });
+            
+            tourPolygons.push({
+                polygon: polygon,
+                tour: tour
+            });
+        }
+
+        async function createSimpleTourOverlay(tour) {
+            // Fallback method - simplified boundary
+            const geocoder = new google.maps.Geocoder();
+            const coordinates = [];
+            
+            for (const address of tour.addresses) {
+                try {
+                    const result = await geocodeAddress(geocoder, address);
+                    if (result) coordinates.push(result);
+                } catch (error) {
+                    console.log(`Could not geocode: ${address}`);
+                }
+            }
+            
+            if (coordinates.length > 0) {
+                const bounds = new google.maps.LatLngBounds();
+                coordinates.forEach(coord => bounds.extend(coord));
+                
+                const ne = bounds.getNorthEast();
+                const sw = bounds.getSouthWest();
+                const padding = 0.003;
+                
+                const simpleBoundary = [
+                    { lat: ne.lat() + padding, lng: sw.lng() - padding },
+                    { lat: ne.lat() + padding, lng: ne.lng() + padding },
+                    { lat: sw.lat() - padding, lng: ne.lng() + padding },
+                    { lat: sw.lat() - padding, lng: sw.lng() - padding }
+                ];
+                
+                const polygon = new google.maps.Polygon({
+                    paths: simpleBoundary,
+                    strokeColor: tour.color,
+                    strokeOpacity: 0.8,
+                    strokeWeight: 3,
+                    fillColor: tour.color,
+                    fillOpacity: 0.2,
+                    map: map,
+                    clickable: true
+                });
+                
+                polygon.addListener('click', () => {
+                    showTourCard(tour);
+                });
+                
+                tourPolygons.push({
+                    polygon: polygon,
+                    tour: tour
+                });
+                
+                addTourMarkers(coordinates.slice(0, 3), tour.color);
             }
         }
 
