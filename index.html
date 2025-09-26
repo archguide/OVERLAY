@@ -330,175 +330,268 @@
         let activeTourCard = null;
         let tourPolygons = [];
         
-        // Sample tour data with predefined neighborhood boundaries
+        // Sample tour data - this will be loaded from Google Sheets
         const sampleTours = [
             {
                 id: 'pasadena-historic',
                 name: 'Historic Pasadena',
                 subtitle: 'South Pasadena • Architecture & Culture',
-                description: 'Explore the rich architectural heritage and cultural landmarks of historic Pasadena, featuring beautiful Victorian homes, grand boulevards, and iconic civic buildings.',
+                description: 'Explore the rich architectural heritage and cultural landmarks of historic Pasadena.',
                 color: '#FF6B6B',
                 stops: 22,
                 duration: 2.5,
                 distance: 8.3,
-                boundary: [
-                    { lat: 34.1756, lng: -118.1212 },
-                    { lat: 34.1756, lng: -118.1140 },
-                    { lat: 34.1689, lng: -118.1140 },
-                    { lat: 34.1689, lng: -118.1062 },
-                    { lat: 34.1578, lng: -118.1062 },
-                    { lat: 34.1578, lng: -118.1140 },
-                    { lat: 34.1445, lng: -118.1140 },
-                    { lat: 34.1445, lng: -118.1212 },
-                    { lat: 34.1312, lng: -118.1212 },
-                    { lat: 34.1312, lng: -118.1284 },
-                    { lat: 34.1223, lng: -118.1284 },
-                    { lat: 34.1223, lng: -118.1356 },
-                    { lat: 34.1134, lng: -118.1356 },
-                    { lat: 34.1134, lng: -118.1428 },
-                    { lat: 34.1045, lng: -118.1428 },
-                    { lat: 34.1045, lng: -118.1500 },
-                    { lat: 34.0956, lng: -118.1500 },
-                    { lat: 34.0956, lng: -118.1572 },
-                    { lat: 34.0978, lng: -118.1572 },
-                    { lat: 34.0978, lng: -118.1644 },
-                    { lat: 34.1067, lng: -118.1644 },
-                    { lat: 34.1067, lng: -118.1572 },
-                    { lat: 34.1156, lng: -118.1572 },
-                    { lat: 34.1156, lng: -118.1500 },
-                    { lat: 34.1245, lng: -118.1500 },
-                    { lat: 34.1245, lng: -118.1428 },
-                    { lat: 34.1334, lng: -118.1428 },
-                    { lat: 34.1334, lng: -118.1356 },
-                    { lat: 34.1423, lng: -118.1356 },
-                    { lat: 34.1423, lng: -118.1284 },
-                    { lat: 34.1512, lng: -118.1284 },
-                    { lat: 34.1512, lng: -118.1212 },
-                    { lat: 34.1756, lng: -118.1212 }
-                ]
+                neighborhoodName: 'South Pasadena',
+                photoUrl: null
             },
             {
                 id: 'los-feliz',
                 name: 'Los Feliz',
                 subtitle: 'Los Feliz • Hollywood Hills & Griffith Park',
-                description: 'Discover the bohemian charm of Los Feliz with its historic theaters, trendy cafes, hillside mansions, and proximity to Griffith Observatory.',
+                description: 'Discover the bohemian charm of Los Feliz with its historic theaters and trendy cafes.',
                 color: '#4ECDC4',
                 stops: 18,
                 duration: 2.0,
                 distance: 6.5,
-                boundary: [
-                    { lat: 34.1200, lng: -118.2950 },
-                    { lat: 34.1200, lng: -118.2750 },
-                    { lat: 34.1100, lng: -118.2750 },
-                    { lat: 34.1100, lng: -118.2650 },
-                    { lat: 34.1000, lng: -118.2650 },
-                    { lat: 34.1000, lng: -118.2550 },
-                    { lat: 34.0900, lng: -118.2550 },
-                    { lat: 34.0900, lng: -118.2750 },
-                    { lat: 34.0800, lng: -118.2750 },
-                    { lat: 34.0800, lng: -118.2850 },
-                    { lat: 34.0900, lng: -118.2850 },
-                    { lat: 34.0900, lng: -118.2950 },
-                    { lat: 34.1000, lng: -118.2950 },
-                    { lat: 34.1000, lng: -118.3050 },
-                    { lat: 34.1100, lng: -118.3050 },
-                    { lat: 34.1100, lng: -118.2950 },
-                    { lat: 34.1200, lng: -118.2950 }
-                ]
+                neighborhoodName: 'Los Feliz',
+                photoUrl: null
             },
             {
                 id: 'silver-lake',
                 name: 'Silver Lake',
                 subtitle: 'Silver Lake • Hipster Haven & Reservoir Views',
-                description: 'Experience the artistic soul of LA in Silver Lake, known for indie music venues, vintage shops, reservoir walks, and eclectic architecture.',
+                description: 'Experience the artistic soul of LA in Silver Lake with indie music venues and vintage shops.',
                 color: '#45B7D1',
                 stops: 15,
                 duration: 1.8,
                 distance: 5.2,
-                boundary: [
-                    { lat: 34.1000, lng: -118.2750 },
-                    { lat: 34.1000, lng: -118.2550 },
-                    { lat: 34.0900, lng: -118.2550 },
-                    { lat: 34.0900, lng: -118.2450 },
-                    { lat: 34.0800, lng: -118.2450 },
-                    { lat: 34.0800, lng: -118.2350 },
-                    { lat: 34.0700, lng: -118.2350 },
-                    { lat: 34.0700, lng: -118.2450 },
-                    { lat: 34.0600, lng: -118.2450 },
-                    { lat: 34.0600, lng: -118.2550 },
-                    { lat: 34.0700, lng: -118.2550 },
-                    { lat: 34.0700, lng: -118.2650 },
-                    { lat: 34.0800, lng: -118.2650 },
-                    { lat: 34.0800, lng: -118.2750 },
-                    { lat: 34.0900, lng: -118.2750 },
-                    { lat: 34.0900, lng: -118.2850 },
-                    { lat: 34.1000, lng: -118.2850 },
-                    { lat: 34.1000, lng: -118.2750 }
-                ]
+                neighborhoodName: 'Silver Lake',
+                photoUrl: null
             },
             {
                 id: 'west-hollywood',
                 name: 'West Hollywood',
                 subtitle: 'West Hollywood • Sunset Strip & Design District',
-                description: 'Explore the glamorous heart of LA nightlife and design in WeHo, featuring the iconic Sunset Strip, world-class shopping, and vibrant LGBTQ+ culture.',
+                description: 'Explore the glamorous heart of LA nightlife and design in WeHo.',
                 color: '#96CEB4',
                 stops: 20,
                 duration: 2.2,
                 distance: 7.1,
-                boundary: [
-                    { lat: 34.1000, lng: -118.3800 },
-                    { lat: 34.1000, lng: -118.3500 },
-                    { lat: 34.0900, lng: -118.3500 },
-                    { lat: 34.0900, lng: -118.3600 },
-                    { lat: 34.0800, lng: -118.3600 },
-                    { lat: 34.0800, lng: -118.3700 },
-                    { lat: 34.0750, lng: -118.3700 },
-                    { lat: 34.0750, lng: -118.3800 },
-                    { lat: 34.0700, lng: -118.3800 },
-                    { lat: 34.0700, lng: -118.3900 },
-                    { lat: 34.0800, lng: -118.3900 },
-                    { lat: 34.0800, lng: -118.4000 },
-                    { lat: 34.0900, lng: -118.4000 },
-                    { lat: 34.0900, lng: -118.3900 },
-                    { lat: 34.1000, lng: -118.3900 },
-                    { lat: 34.1000, lng: -118.3800 }
-                ]
+                neighborhoodName: 'West Hollywood',
+                photoUrl: null
             },
             {
                 id: 'downtown-la',
                 name: 'Downtown LA',
                 subtitle: 'DTLA • Skyscrapers & Historic Core',
-                description: 'Discover the urban renaissance of Downtown LA with its towering skyscrapers, historic architecture, arts district, and world-class dining scene.',
+                description: 'Discover the urban renaissance of Downtown LA with its towering skyscrapers.',
                 color: '#FFEAA7',
                 stops: 25,
                 duration: 3.0,
                 distance: 9.8,
-                boundary: [
-                    { lat: 34.0700, lng: -118.2300 },
-                    { lat: 34.0700, lng: -118.2100 },
-                    { lat: 34.0600, lng: -118.2100 },
-                    { lat: 34.0600, lng: -118.2000 },
-                    { lat: 34.0500, lng: -118.2000 },
-                    { lat: 34.0500, lng: -118.2100 },
-                    { lat: 34.0400, lng: -118.2100 },
-                    { lat: 34.0400, lng: -118.2200 },
-                    { lat: 34.0300, lng: -118.2200 },
-                    { lat: 34.0300, lng: -118.2300 },
-                    { lat: 34.0200, lng: -118.2300 },
-                    { lat: 34.0200, lng: -118.2400 },
-                    { lat: 34.0300, lng: -118.2400 },
-                    { lat: 34.0300, lng: -118.2500 },
-                    { lat: 34.0400, lng: -118.2500 },
-                    { lat: 34.0400, lng: -118.2600 },
-                    { lat: 34.0500, lng: -118.2600 },
-                    { lat: 34.0500, lng: -118.2500 },
-                    { lat: 34.0600, lng: -118.2500 },
-                    { lat: 34.0600, lng: -118.2400 },
-                    { lat: 34.0700, lng: -118.2400 },
-                    { lat: 34.0700, lng: -118.2300 }
-                ]
+                neighborhoodName: 'Downtown Los Angeles',
+                photoUrl: null
             }
         ];
+
+        async function loadTours() {
+            // In production, this would fetch from Google Sheets:
+            // const tours = await loadToursFromGoogleSheets();
+            
+            // For now, use sample data
+            tours = sampleTours;
+            
+            // Fetch real neighborhood boundaries for each tour
+            for (const tour of tours) {
+                await createTourOverlay(tour);
+            }
+            
+            // Update legend
+            updateLegend();
+            
+            // Hide loading
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        async function loadToursFromGoogleSheets() {
+            // Example implementation for Google Sheets integration
+            try {
+                const sheetId = 'YOUR_GOOGLE_SHEET_ID';
+                const apiKey = 'YOUR_GOOGLE_SHEETS_API_KEY';
+                const range = 'Tours!A:J'; // Adjust range as needed
+                
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`
+                );
+                const data = await response.json();
+                
+                // Process sheet data into tour objects
+                const tours = [];
+                const rows = data.values;
+                
+                // Skip header row
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    tours.push({
+                        id: row[0],
+                        name: row[1],
+                        subtitle: row[2],
+                        description: row[3],
+                        color: row[4],
+                        stops: parseInt(row[5]),
+                        duration: parseFloat(row[6]),
+                        distance: parseFloat(row[7]),
+                        neighborhoodName: row[8], // This is the key - neighborhood name for OSM lookup
+                        photoUrl: row[9]
+                    });
+                }
+                
+                return tours;
+            } catch (error) {
+                console.error('Error loading tours from Google Sheets:', error);
+                return sampleTours; // Fallback to sample data
+            }
+        }
+
+        async function createTourOverlay(tour) {
+            try {
+                console.log(`Fetching boundary for ${tour.neighborhoodName}`);
+                
+                // Fetch real neighborhood boundary from OpenStreetMap
+                const boundary = await fetchNeighborhoodBoundary(tour.neighborhoodName);
+                
+                if (boundary && boundary.length > 0) {
+                    createBoundaryPolygon(tour, boundary);
+                } else {
+                    // Fallback: try LA City data
+                    const laBoundary = await fetchLACityBoundary(tour.neighborhoodName);
+                    if (laBoundary && laBoundary.length > 0) {
+                        createBoundaryPolygon(tour, laBoundary);
+                    } else {
+                        console.log(`No boundary found for ${tour.neighborhoodName}, skipping`);
+                    }
+                }
+                
+            } catch (error) {
+                console.error(`Error creating overlay for ${tour.name}:`, error);
+            }
+        }
+
+        async function fetchNeighborhoodBoundary(neighborhoodName) {
+            try {
+                // Query OpenStreetMap for neighborhood boundary
+                const query = `
+                    [out:json][timeout:25];
+                    (
+                        relation["name"="${neighborhoodName}"]["place"~"neighbourhood|suburb"]["admin_level"];
+                        relation["name"="${neighborhoodName}"]["boundary"="administrative"];
+                    );
+                    out geom;
+                `;
+                
+                const encodedQuery = encodeURIComponent(query);
+                const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodedQuery}`);
+                
+                if (!response.ok) {
+                    throw new Error(`OSM query failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.elements && data.elements.length > 0) {
+                    // Extract coordinates from the first matching relation
+                    const relation = data.elements[0];
+                    if (relation.members) {
+                        return extractPolygonFromOSMRelation(relation);
+                    }
+                }
+                
+                return null;
+            } catch (error) {
+                console.error(`Error fetching OSM boundary for ${neighborhoodName}:`, error);
+                return null;
+            }
+        }
+
+        async function fetchLACityBoundary(neighborhoodName) {
+            try {
+                // Fallback: Query LA City's neighborhood council data
+                const response = await fetch(
+                    'https://geohub.lacity.org/datasets/lahub::neighborhood-councils-certified.geojson'
+                );
+                
+                if (!response.ok) {
+                    throw new Error(`LA City data failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Find matching neighborhood
+                const neighborhood = data.features.find(feature => {
+                    const name = feature.properties.name || feature.properties.Name;
+                    return name && name.toLowerCase().includes(neighborhoodName.toLowerCase());
+                });
+                
+                if (neighborhood && neighborhood.geometry.type === 'Polygon') {
+                    // Convert GeoJSON coordinates to Google Maps format
+                    return neighborhood.geometry.coordinates[0].map(coord => ({
+                        lat: coord[1],
+                        lng: coord[0]
+                    }));
+                }
+                
+                return null;
+            } catch (error) {
+                console.error(`Error fetching LA City boundary for ${neighborhoodName}:`, error);
+                return null;
+            }
+        }
+
+        function extractPolygonFromOSMRelation(relation) {
+            // This is a simplified extraction - OSM relations can be complex
+            // In practice, you might need more sophisticated parsing
+            const coordinates = [];
+            
+            if (relation.geometry) {
+                relation.geometry.forEach(geom => {
+                    if (geom.type === 'way') {
+                        geom.nodes.forEach(node => {
+                            coordinates.push({
+                                lat: node.lat,
+                                lng: node.lon
+                            });
+                        });
+                    }
+                });
+            }
+            
+            return coordinates.length > 3 ? coordinates : null;
+        }
+
+        function createBoundaryPolygon(tour, boundary) {
+            // Create polygon from fetched boundary coordinates
+            const polygon = new google.maps.Polygon({
+                paths: boundary,
+                strokeColor: tour.color,
+                strokeOpacity: 0.9,
+                strokeWeight: 2,
+                fillColor: tour.color,
+                fillOpacity: 0.15,
+                map: map,
+                clickable: true
+            });
+            
+            polygon.addListener('click', () => {
+                showTourCard(tour);
+            });
+            
+            tourPolygons.push({
+                polygon: polygon,
+                tour: tour
+            });
+            
+            console.log(`Created real boundary for ${tour.name}`);
+        }
 
         function initMap() {
             // Initialize map centered on LA area
