@@ -414,200 +414,71 @@
 
         async function createTourOverlay(tour) {
             try {
-                // First try to use predefined neighborhood boundaries
-                const neighborhoodBoundary = await getNeighborhoodBoundary(tour);
-                
-                if (neighborhoodBoundary) {
-                    // Use predefined boundary
-                    createPolygonFromBoundary(neighborhoodBoundary, tour);
-                } else {
-                    // Fallback: Create street-following boundary
-                    await createStreetBasedBoundary(tour);
-                }
+                // Create road-following perimeter boundary
+                await createRoadPerimeterBoundary(tour);
                 
             } catch (error) {
                 console.error('Error creating tour overlay:', error);
-                // Final fallback to simple boundary
+                // Fallback to simple boundary
                 await createSimpleTourOverlay(tour);
             }
         }
 
-        async function getNeighborhoodBoundary(tour) {
-            // For Pasadena, we can define known neighborhood boundaries
-            // This would ideally come from your Google Sheet with predefined polygons
-            
-            const predefinedBoundaries = {
-                'pasadena-historic': {
-                    // South Pasadena boundary following major streets
-                    boundary: [
-                        { lat: 34.1003, lng: -118.1506 }, // Fair Oaks & Huntington
-                        { lat: 34.1145, lng: -118.1506 }, // Fair Oaks & California
-                        { lat: 34.1145, lng: -118.1673 }, // Orange Grove & California  
-                        { lat: 34.1074, lng: -118.1673 }, // Orange Grove & Mission
-                        { lat: 34.1074, lng: -118.1739 }, // Raymond & Mission
-                        { lat: 34.0980, lng: -118.1739 }, // Raymond & Fremont
-                        { lat: 34.0980, lng: -118.1640 }, // Meridian & Fremont
-                        { lat: 34.1003, lng: -118.1640 }, // Meridian & Huntington
-                        { lat: 34.1003, lng: -118.1506 }  // Back to start
-                    ]
-                }
-                // Add more predefined boundaries here for other tours
-            };
-            
-            return predefinedBoundaries[tour.id] || null;
-        }
-
-        async function createStreetBasedBoundary(tour) {
-            // Geocode all addresses first
+        async function createRoadPerimeterBoundary(tour) {
+            // Geocode all tour stops
             const geocoder = new google.maps.Geocoder();
-            const coordinates = [];
+            const allStops = [];
+            
+            console.log(`Creating road perimeter for ${tour.name} with ${tour.addresses.length} stops`);
             
             for (const address of tour.addresses) {
                 try {
                     const result = await geocodeAddress(geocoder, address);
                     if (result) {
-                        coordinates.push(result);
+                        allStops.push(result);
                     }
                 } catch (error) {
                     console.log(`Could not geocode: ${address}`);
                 }
             }
             
-            if (coordinates.length > 0) {
-                // Find the bounding area
-                const bounds = new google.maps.LatLngBounds();
-                coordinates.forEach(coord => bounds.extend(coord));
-                
-                // Create boundary points along major streets
-                const streetBoundary = await createStreetFollowingPolygon(bounds, coordinates);
-                
-                // Create polygon
-                const polygon = new google.maps.Polygon({
-                    paths: streetBoundary,
-                    strokeColor: tour.color,
-                    strokeOpacity: 0.8,
-                    strokeWeight: 3,
-                    fillColor: tour.color,
-                    fillOpacity: 0.2,
-                    map: map,
-                    clickable: true
-                });
-                
-                polygon.addListener('click', () => {
-                    showTourCard(tour);
-                });
-                
-                tourPolygons.push({
-                    polygon: polygon,
-                    tour: tour
-                });
-                
-                // Add key stop markers
-                addTourMarkers(coordinates.slice(0, 3), tour.color);
+            if (allStops.length < 3) {
+                console.log('Not enough stops for perimeter, using simple boundary');
+                return await createSimpleTourOverlay(tour);
             }
-        }
-
-        async function createStreetFollowingPolygon(bounds, tourPoints) {
-            // Create boundary points that follow major streets
+            
+            // Find the outermost perimeter points (convex hull)
+            const perimeterPoints = convexHull(allStops);
+            console.log(`Found ${perimeterPoints.length} perimeter points`);
+            
+            // Get road routes between consecutive perimeter points
+            const perimeterRoutes = [];
             const directionsService = new google.maps.DirectionsService();
             
-            try {
-                // Find corner points along major streets
-                const cornerPoints = [
-                    { lat: bounds.getNorthEast().lat(), lng: bounds.getSouthWest().lng() }, // NW
-                    { lat: bounds.getNorthEast().lat(), lng: bounds.getNorthEast().lng() }, // NE  
-                    { lat: bounds.getSouthWest().lat(), lng: bounds.getNorthEast().lng() }, // SE
-                    { lat: bounds.getSouthWest().lat(), lng: bounds.getSouthWest().lng() }  // SW
-                ];
+            for (let i = 0; i < perimeterPoints.length; i++) {
+                const start = perimeterPoints[i];
+                const end = perimeterPoints[(i + 1) % perimeterPoints.length];
                 
-                // Snap corner points to nearest major roads
-                const snappedPoints = [];
-                for (const point of cornerPoints) {
-                    const snapped = await snapToNearestRoad(point);
-                    snappedPoints.push(snapped || point);
+                try {
+                    const route = await getRoutePoints(directionsService, start, end);
+                    if (route && route.length > 0) {
+                        // Add route points, but skip the last point to avoid duplication
+                        perimeterRoutes.push(...route.slice(0, -1));
+                    }
+                } catch (error) {
+                    console.log(`Failed to get route between perimeter points, using straight line`);
+                    perimeterRoutes.push(start);
                 }
-                
-                // Create boundary following roads between snapped points
-                const roadBoundary = [];
-                for (let i = 0; i < snappedPoints.length; i++) {
-                    const start = snappedPoints[i];
-                    const end = snappedPoints[(i + 1) % snappedPoints.length];
-                    
-                    // Get road route between points
-                    const roadSegment = await getRoadRoute(start, end);
-                    roadBoundary.push(...roadSegment);
-                }
-                
-                return roadBoundary.length > 3 ? roadBoundary : cornerPoints;
-                
-            } catch (error) {
-                console.log('Street following failed, using simplified boundary');
-                return [
-                    { lat: bounds.getNorthEast().lat(), lng: bounds.getSouthWest().lng() },
-                    { lat: bounds.getNorthEast().lat(), lng: bounds.getNorthEast().lng() },
-                    { lat: bounds.getSouthWest().lat(), lng: bounds.getNorthEast().lng() },
-                    { lat: bounds.getSouthWest().lat(), lng: bounds.getSouthWest().lng() }
-                ];
             }
-        }
-
-        async function snapToNearestRoad(point) {
-            // This would use Google's Snap to Roads API in production
-            // For now, we'll use a simplified approach with Directions API
             
-            const directionsService = new google.maps.DirectionsService();
+            if (perimeterRoutes.length < 3) {
+                console.log('Failed to create road perimeter, using convex hull');
+                perimeterRoutes.push(...perimeterPoints);
+            }
             
-            return new Promise((resolve) => {
-                // Try to get a route to a nearby point to snap to road
-                const nearbyPoint = {
-                    lat: point.lat + 0.001,
-                    lng: point.lng + 0.001
-                };
-                
-                directionsService.route({
-                    origin: point,
-                    destination: nearbyPoint,
-                    travelMode: google.maps.TravelMode.DRIVING
-                }, (result, status) => {
-                    if (status === 'OK' && result.routes[0]) {
-                        const snappedPoint = result.routes[0].legs[0].start_location;
-                        resolve({
-                            lat: snappedPoint.lat(),
-                            lng: snappedPoint.lng()
-                        });
-                    } else {
-                        resolve(point); // Fallback to original point
-                    }
-                });
-            });
-        }
-
-        async function getRoadRoute(start, end) {
-            const directionsService = new google.maps.DirectionsService();
-            
-            return new Promise((resolve) => {
-                directionsService.route({
-                    origin: start,
-                    destination: end,
-                    travelMode: google.maps.TravelMode.DRIVING
-                }, (result, status) => {
-                    if (status === 'OK' && result.routes[0]) {
-                        const path = result.routes[0].overview_path;
-                        const roadPoints = path.map(point => ({
-                            lat: point.lat(),
-                            lng: point.lng()
-                        }));
-                        resolve(roadPoints);
-                    } else {
-                        resolve([start, end]); // Fallback to straight line
-                    }
-                });
-            });
-        }
-
-        function createPolygonFromBoundary(boundaryData, tour) {
+            // Create the polygon overlay
             const polygon = new google.maps.Polygon({
-                paths: boundaryData.boundary,
+                paths: perimeterRoutes,
                 strokeColor: tour.color,
                 strokeOpacity: 0.8,
                 strokeWeight: 3,
@@ -625,6 +496,117 @@
                 polygon: polygon,
                 tour: tour
             });
+            
+            // Add markers for all stops (smaller ones for interior, larger for perimeter)
+            addTourStopMarkers(allStops, perimeterPoints, tour.color);
+            
+            console.log(`Created road perimeter boundary with ${perimeterRoutes.length} points`);
+        }
+
+        async function getRoutePoints(directionsService, start, end) {
+            return new Promise((resolve, reject) => {
+                directionsService.route({
+                    origin: start,
+                    destination: end,
+                    travelMode: google.maps.TravelMode.DRIVING,
+                    optimizeWaypoints: false
+                }, (result, status) => {
+                    if (status === 'OK' && result.routes[0]) {
+                        // Get detailed path points from the route
+                        const path = result.routes[0].overview_path;
+                        const routePoints = path.map(point => ({
+                            lat: point.lat(),
+                            lng: point.lng()
+                        }));
+                        resolve(routePoints);
+                    } else {
+                        reject(new Error(`Route failed: ${status}`));
+                    }
+                });
+            });
+        }
+
+        function addTourStopMarkers(allStops, perimeterPoints, color) {
+            // Create markers for all stops
+            allStops.forEach((stop, index) => {
+                const isPerimeter = perimeterPoints.some(p => 
+                    Math.abs(p.lat - stop.lat) < 0.0001 && Math.abs(p.lng - stop.lng) < 0.0001
+                );
+                
+                const markerSize = isPerimeter ? 20 : 14;
+                const strokeWidth = isPerimeter ? 3 : 2;
+                
+                new google.maps.Marker({
+                    position: stop,
+                    map: map,
+                    icon: {
+                        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+                            <svg width="${markerSize}" height="${markerSize}" viewBox="0 0 ${markerSize} ${markerSize}" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="${markerSize/2}" cy="${markerSize/2}" r="${markerSize/2 - strokeWidth/2}" 
+                                    fill="${color}" stroke="white" stroke-width="${strokeWidth}"/>
+                                <text x="${markerSize/2}" y="${markerSize/2 + 3}" text-anchor="middle" 
+                                    fill="white" font-size="${Math.floor(markerSize * 0.4)}" font-weight="bold">${index + 1}</text>
+                            </svg>
+                        `)}`,
+                        scaledSize: new google.maps.Size(markerSize, markerSize),
+                        anchor: new google.maps.Point(markerSize/2, markerSize/2)
+                    },
+                    title: `Stop ${index + 1}${isPerimeter ? ' (Perimeter)' : ''}`,
+                    zIndex: isPerimeter ? 1000 : 900
+                });
+            });
+        }
+
+        function convexHull(points) {
+            if (points.length < 3) return points;
+            
+            // Find the bottom-most point (and left-most in case of tie)
+            let start = 0;
+            for (let i = 1; i < points.length; i++) {
+                if (points[i].lat < points[start].lat || 
+                    (points[i].lat === points[start].lat && points[i].lng < points[start].lng)) {
+                    start = i;
+                }
+            }
+            
+            // Sort points by polar angle with respect to start point
+            const sorted = points.slice();
+            const startPoint = sorted[start];
+            sorted.splice(start, 1);
+            
+            sorted.sort((a, b) => {
+                const angleA = Math.atan2(a.lat - startPoint.lat, a.lng - startPoint.lng);
+                const angleB = Math.atan2(b.lat - startPoint.lat, b.lng - startPoint.lng);
+                if (Math.abs(angleA - angleB) < 0.0001) {
+                    // If angles are equal, sort by distance
+                    const distA = distance(startPoint, a);
+                    const distB = distance(startPoint, b);
+                    return distA - distB;
+                }
+                return angleA - angleB;
+            });
+            
+            // Build convex hull using Graham scan
+            const hull = [startPoint];
+            
+            for (const point of sorted) {
+                // Remove points that create clockwise turn
+                while (hull.length > 1 && 
+                       crossProduct(hull[hull.length-2], hull[hull.length-1], point) <= 0) {
+                    hull.pop();
+                }
+                hull.push(point);
+            }
+            
+            return hull;
+        }
+
+        function crossProduct(o, a, b) {
+            return (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+        }
+
+        function distance(a, b) {
+            return Math.sqrt(Math.pow(a.lat - b.lat, 2) + Math.pow(a.lng - b.lng, 2));
         }
 
         async function createSimpleTourOverlay(tour) {
@@ -824,23 +806,8 @@
         }
 
         function addTourMarkers(coordinates, color) {
-            coordinates.forEach((coord, index) => {
-                new google.maps.Marker({
-                    position: coord,
-                    map: map,
-                    icon: {
-                        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
-                            <svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="8" cy="8" r="7" fill="${color}" stroke="white" stroke-width="2"/>
-                                <text x="8" y="12" text-anchor="middle" fill="white" font-size="10" font-weight="bold">${index + 1}</text>
-                            </svg>
-                        `)}`,
-                        scaledSize: new google.maps.Size(16, 16),
-                        anchor: new google.maps.Point(8, 8)
-                    },
-                    zIndex: 1000
-                });
-            });
+            // This function is replaced by addTourStopMarkers
+            // Kept for compatibility
         }
 
         function updateLegend() {
